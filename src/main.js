@@ -1,4 +1,5 @@
 import './style.css'
+import DOMPurify from 'isomorphic-dompurify'
 
 // State
 const state = {
@@ -23,6 +24,36 @@ const state = {
 // Config
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const app = document.querySelector('#app');
+
+// Security: HTML escaping for XSS protection
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Security: Sanitize HTML content using DOMPurify
+function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a'],
+    ALLOWED_ATTR: ['href', 'target', 'rel']
+  });
+}
+
+// Security: Helper to make authenticated API requests
+async function authenticatedFetch(url, options = {}) {
+  const token = state.token;
+  if (!token) {
+    throw new Error('No authentication token');
+  }
+
+  const headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${token}`
+  };
+
+  return fetch(url, { ...options, headers });
+}
 
 // YouTube player management (must be global for cross-module access)
 window.youtubePlayers = [];
@@ -272,15 +303,15 @@ function renderArticleCard(article) {
     <article class="card article-card">
       ${article.imageUrl ?
       `<div class="card-img-container">
-          <img src="${article.imageUrl}" alt="${article.title}">
+          <img src="${escapeHtml(article.imageUrl)}" alt="${escapeHtml(article.title)}">
         </div>` :
       `<div class="card-img-container" style="background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);"></div>`
     }
       <div class="card-content">
-        <span class="card-category">${article.category}</span>
-        <h3 class="card-title">${article.title}</h3>
-        <p class="card-excerpt">${article.content.substring(0, 150)}...</p>
-        <button class="btn-read-more" onclick="window.viewArticle('${article.id}')">Read More</button>
+        <span class="card-category">${escapeHtml(article.category)}</span>
+        <h3 class="card-title">${escapeHtml(article.title)}</h3>
+        <p class="card-excerpt">${escapeHtml(article.content.substring(0, 150))}...</p>
+        <button class="btn-read-more" onclick="window.viewArticle('${escapeHtml(article.id)}')">Read More</button>
       </div>
     </article>
   `;
@@ -299,16 +330,16 @@ function renderVideoCard(video) {
     <div class="card video-card">
       <div class="card-img-container" style="position: relative;">
         ${video.thumbnailUrl ?
-      `<img src="${video.thumbnailUrl}" alt="${video.title}" style="cursor: pointer;" onclick="window.playYouTubeVideo('${videoId}', this.parentElement)">
+      `<img src="${escapeHtml(video.thumbnailUrl)}" alt="${escapeHtml(video.title)}" style="cursor: pointer;" onclick="window.playYouTubeVideo('${escapeHtml(videoId)}', this.parentElement)">
            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68px; height: 48px; background: red; border-radius: 12px; cursor: pointer; pointer-events: none;">
              <svg height="100%" version="1.1" viewBox="0 0 68 48" width="100%"><path d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 C12.21,47.87,34,48,34,48s21.79-0.13,27.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z" fill="#f00"></path><path d="M 45,24 27,14 27,34" fill="#fff"></path></svg>
            </div>`
-      : `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
+      : `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${escapeHtml(videoId)}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
     }
       </div>
       <div class="card-content">
-        <span class="card-category">${video.category || 'General'}</span>
-        <h3 class="card-title" style="font-size:1.1rem">${video.title}</h3>
+        <span class="card-category">${escapeHtml(video.category || 'General')}</span>
+        <h3 class="card-title" style="font-size:1.1rem">${escapeHtml(video.title)}</h3>
         <div class="card-meta">
           <span>${new Date(video.createdAt).toLocaleDateString()}</span>
         </div>
@@ -434,15 +465,15 @@ function renderSingleArticle() {
         
         <div class="container" style="max-width: 900px;">
           <article class="single-article">
-            <span class="card-category">${article.category}</span>
-            <h1 class="article-page-title">${article.title}</h1>
+            <span class="card-category">${escapeHtml(article.category)}</span>
+            <h1 class="article-page-title">${escapeHtml(article.title)}</h1>
             <div class="article-page-meta">
               <div class="meta-item">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
-                <span>${article.author}</span>
+                <span>${escapeHtml(article.author)}</span>
               </div>
               <div class="meta-item">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -455,7 +486,7 @@ function renderSingleArticle() {
               </div>
             </div>
             <div class="article-page-content">
-              ${article.content.split('\n').map(p => p.trim() ? `<p>${p}</p>` : '').join('')}
+              ${sanitizeHtml(article.content.split('\n').map(p => p.trim() ? `<p>${escapeHtml(p)}</p>` : '').join(''))}
             </div>
           </article>
         </div>
@@ -811,12 +842,12 @@ function renderDashboard() {
         ${state.articles.map(article => `
           <div class="content-item">
             <div class="content-info">
-              <strong>${article.title}</strong>
-              <span style="color:var(--color-text-muted)">${article.category} • ${new Date(article.createdAt).toLocaleDateString()}</span>
+              <strong>${escapeHtml(article.title)}</strong>
+              <span style="color:var(--color-text-muted)">${escapeHtml(article.category)} • ${new Date(article.createdAt).toLocaleDateString()}</span>
             </div>
             <div class="content-actions">
-              <button class="btn" style="padding: 0.5rem 1rem; margin-right: 0.5rem;" onclick="window.editArticle('${article.id}')">Edit</button>
-              <button class="btn-delete" onclick="window.deleteArticle('${article.id}')">Delete</button>
+              <button class="btn" style="padding: 0.5rem 1rem; margin-right: 0.5rem;" onclick="window.editArticle('${escapeHtml(article.id)}')">Edit</button>
+              <button class="btn-delete" onclick="window.deleteArticle('${escapeHtml(article.id)}')">Delete</button>
             </div>
           </div>
         `).join('')}
@@ -827,12 +858,12 @@ function renderDashboard() {
         ${state.videos.map(video => `
           <div class="content-item">
             <div class="content-info">
-              <strong>${video.title}</strong>
-              <span style="color:var(--color-text-muted)">${video.category} • ${new Date(video.createdAt).toLocaleDateString()}</span>
+              <strong>${escapeHtml(video.title)}</strong>
+              <span style="color:var(--color-text-muted)">${escapeHtml(video.category)} • ${new Date(video.createdAt).toLocaleDateString()}</span>
             </div>
             <div class="content-actions">
-              <button class="btn" style="padding: 0.5rem 1rem; margin-right: 0.5rem;" onclick="window.editVideo('${video.id}')">Edit</button>
-              <button class="btn-delete" onclick="window.deleteVideo('${video.id}')">Delete</button>
+              <button class="btn" style="padding: 0.5rem 1rem; margin-right: 0.5rem;" onclick="window.editVideo('${escapeHtml(video.id)}')">Edit</button>
+              <button class="btn-delete" onclick="window.deleteVideo('${escapeHtml(video.id)}')">Delete</button>
             </div>
           </div>
         `).join('')}
@@ -915,7 +946,7 @@ window.deleteArticle = async (id) => {
   if (!confirm('Are you sure you want to delete this article?')) return;
 
   try {
-    const res = await fetch(`${API_URL}/articles/${id}`, { method: 'DELETE' });
+    const res = await authenticatedFetch(`${API_URL}/articles/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Delete failed');
 
     alert('Article deleted successfully');
@@ -923,7 +954,7 @@ window.deleteArticle = async (id) => {
     updateUI();
   } catch (error) {
     console.error(error);
-    alert('Failed to delete article');
+    alert('Failed to delete article. Please try logging in again.');
   }
 };
 
@@ -932,7 +963,7 @@ window.deleteVideo = async (id) => {
   if (!confirm('Are you sure you want to delete this video?')) return;
 
   try {
-    const res = await fetch(`${API_URL}/videos/${id}`, { method: 'DELETE' });
+    const res = await authenticatedFetch(`${API_URL}/videos/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Delete failed');
 
     alert('Video deleted successfully');
@@ -940,7 +971,7 @@ window.deleteVideo = async (id) => {
     updateUI();
   } catch (error) {
     console.error(error);
-    alert('Failed to delete video');
+    alert('Failed to delete video. Please try logging in again.');
   }
 };
 
@@ -1075,7 +1106,7 @@ function attachEvents() {
           const formData = new FormData();
           formData.append('file', imageFile);
 
-          const uploadRes = await fetch(`${API_URL}/upload/article-image`, {
+          const uploadRes = await authenticatedFetch(`${API_URL}/upload/article-image`, {
             method: 'POST',
             body: formData
           });
@@ -1102,7 +1133,7 @@ function attachEvents() {
         }
 
         // Submit article
-        const res = await fetch(url, {
+        const res = await authenticatedFetch(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1206,7 +1237,7 @@ async function handleVideoUpload(e) {
       const formData = new FormData();
       formData.append('file', thumbnailFile);
 
-      const uploadRes = await fetch(`${API_URL}/upload/video-thumbnail`, {
+      const uploadRes = await authenticatedFetch(`${API_URL}/upload/video-thumbnail`, {
         method: 'POST',
         body: formData
       });
@@ -1228,7 +1259,7 @@ async function handleVideoUpload(e) {
     const method = isEditing ? 'PUT' : 'POST';
 
     // Save video record
-    const res = await fetch(url, {
+    const res = await authenticatedFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
